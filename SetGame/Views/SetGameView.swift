@@ -8,30 +8,34 @@
 import SwiftUI
 
 struct SetGameView: View {
-    
     @ObservedObject var viewModel: SetGameViewModel
+    @Namespace var cardNamespace
+
     var body: some View {
         VStack {
-            VStack {
-                cardGrid
-                    .animation(
-                        .smooth(duration: 0.5),
-                        value: viewModel.cards
-                    )
+            HStack {
+                deckView
+                Spacer()
+                discardPileView
             }
-            .imageScale(.large)
             .padding()
+            cardGrid
+                .animation(.easeInOut(duration: 0.5), value: viewModel.cards)
+            Text(viewModel.matchMessage())
+                .font(.headline)
             HStack {
-                Text("\(viewModel.matchMessage())")
-            }
-            HStack {
-                Button("Add cards") {
-                    viewModel.dealCards(3)
+                Button("Shuffle") {
+                    withAnimation {
+                        viewModel.shuffleDealtCards()
+                    }
                 }
                 Button("Restart") {
-                    viewModel.startGame()
+                    withAnimation {
+                        viewModel.startGame()
+                    }
                 }
             }
+            .padding()
         }
     }
 
@@ -41,8 +45,7 @@ struct SetGameView: View {
                 .prefix(viewModel.visibleCards)
                 .filter { !$0.isMatched }
             let shouldScroll = activeCards.count >= 30
-            let cardWidth =
-                shouldScroll
+            let cardWidth = shouldScroll
                 ? 80.0
                 : viewModel.computeCardWidth(
                     count: activeCards.count,
@@ -52,28 +55,64 @@ struct SetGameView: View {
 
             ScrollView(.vertical) {
                 LazyVGrid(
-                    columns: [
-                        GridItem(.adaptive(minimum: cardWidth), spacing: 8)
-                    ],
+                    columns: [GridItem(.adaptive(minimum: cardWidth), spacing: 8)],
                     spacing: 8
                 ) {
                     ForEach(activeCards) { card in
                         ShapeView(card: card, viewModel: viewModel)
-                            .frame(
-                                width: cardWidth,
-                                height: cardWidth / (2 / 3)
-                            )
+                            .matchedGeometryEffect(id: card.id, in: cardNamespace)
+                            .frame(width: cardWidth, height: cardWidth / (2 / 3))
                             .background(Color.white)
                             .cornerRadius(10)
                             .shadow(radius: 2)
+                            .scaleEffect(
+                                viewModel.matchResult == true && card.isPicked ? 1.2 : 1.0
+                            )
+                            .rotation3DEffect(
+                                .degrees(viewModel.matchResult == false && card.isPicked ? 360 : 0),
+                                axis: (x: 0, y: 1, z: 0)
+                            )
                             .onTapGesture {
-                                viewModel.tap(card)
+                                withAnimation {
+                                    viewModel.tap(card)
+                                }
                             }
                     }
                 }
                 .padding(8)
             }
             .scrollDisabled(!shouldScroll)
+        }
+    }
+
+    var deckView: some View {
+        Button(action: {
+            withAnimation {
+                viewModel.dealFromDeck()
+            }
+        }) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.gray)
+                .frame(width: 80, height: 120)
+                .overlay(
+                    Text("\(viewModel.cards.count)")
+                        .foregroundColor(.white)
+                )
+        }
+    }
+
+    var discardPileView: some View {
+        let lastDiscarded = viewModel.discardPile.last
+        return Group {
+            if let card = lastDiscarded {
+                ShapeView(card: card, viewModel: viewModel)
+                    .frame(width: 80, height: 120)
+                    .matchedGeometryEffect(id: card.id, in: cardNamespace)
+            } else {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gray.opacity(0.5))
+                    .frame(width: 80, height: 120)
+            }
         }
     }
 }

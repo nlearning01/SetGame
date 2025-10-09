@@ -8,20 +8,61 @@
 import SwiftUI
 
 class SetGameViewModel: ObservableObject {
-    
-    @Published var visibleCards: Int = 12
-    private var matchResult: Bool? = nil
+    @Published var visibleCards: Int = 0
+    @Published var matchResult: Bool? = nil
+    @Published var dealAnimation = false
     private var game = SetModel()
     var cards: [Card] {
         game.deck
+    }
+    var discardPile: [Card] {
+        game.discardPile
+    }
+
+    init() {
+        startGame()
     }
 
     func tap(_ card: Card) {
         matchResult = game.pick(card)
         objectWillChange.send()
         if matchResult == true {
-            dealCards()
+            dealAnimation = true
+            withAnimation {
+                visibleCards = cards.count
+            }
+        } else if matchResult == false {
+            dealAnimation = false
         }
+    }
+
+    func dealFromDeck() {
+        if let lastMatch = matchResult, lastMatch {
+            let matchedCount = cards.filter { $0.isMatched }.count
+            visibleCards -= matchedCount
+        }
+        let newCards = game.deal(3)
+        withAnimation {
+            visibleCards += newCards.count
+        }
+        dealAnimation = true
+    }
+
+    func startGame() {
+        game = SetModel()
+        let initialCards = game.deal(12)
+        withAnimation {
+            visibleCards = initialCards.count
+        }
+        dealAnimation = true
+    }
+
+    func shuffleDealtCards() {
+        withAnimation {
+            game.shuffleDealtCards()
+            visibleCards = min(visibleCards, cards.count)
+        }
+        dealAnimation = true
     }
 
     func matchMessage() -> String {
@@ -35,15 +76,6 @@ class SetGameViewModel: ObservableObject {
         case .some(_):
             return ""
         }
-    }
-
-    func startGame() {
-        game = SetModel()
-        visibleCards = 12
-    }
-
-    func dealCards(_ count: Int = 3) {
-        visibleCards = min(visibleCards + count, cards.count)
     }
 
     func hueToColor(from hue: HueKind) -> Color {
@@ -61,7 +93,6 @@ class SetGameViewModel: ObservableObject {
     ) -> CGFloat {
         let count = CGFloat(count)
         var columnCount = 1.0
-
         repeat {
             let width = (size.width / columnCount)
             let height = width / aspectRatio
